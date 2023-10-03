@@ -191,6 +191,17 @@ impl<R: Read> Bitstream<R> {
     }
 
     #[inline]
+    fn read_bits_inner_const<const N: u32>(&mut self) -> u64 {
+        debug_assert!(self.bits_left >= N);
+        let mask = (1 << N) - 1;
+        let data = self.current & mask;
+        self.current >>= N;
+        self.bits_left -= N;
+        self.global_pos += N as u64;
+        data
+    }
+
+    #[inline]
     fn read_single_bit_inner(&mut self) -> u64 {
         debug_assert!(self.bits_left > 0);
         let data = self.current & 1;
@@ -198,6 +209,36 @@ impl<R: Read> Bitstream<R> {
         self.bits_left -= 1;
         self.global_pos += 1;
         data
+    }
+
+    #[inline]
+    pub fn read_bits_const<const N: u32>(&mut self) -> Result<u32> {
+        if N == 0 {
+            return Ok(0);
+        }
+        if N == 1 {
+            let data = self.read_bool()? as u32;
+            return Ok(data);
+        }
+
+        debug_assert!(N <= 32);
+
+        if self.bits_left >= N {
+            Ok(self.read_bits_inner_const::<N>() as u32)
+        } else {
+            let mut bits = self.bits_left;
+            let mut ret = self.read_bits_inner(self.bits_left);
+
+            while bits < N {
+                self.fill()?;
+                let bits_to_read = std::cmp::min(self.bits_left, N - bits);
+                let next_bits = self.read_bits_inner(bits_to_read);
+                ret |= next_bits << bits;
+                bits += bits_to_read;
+            }
+
+            Ok(ret as u32)
+        }
     }
 
     pub fn read_bits(&mut self, n: u32) -> Result<u32> {
