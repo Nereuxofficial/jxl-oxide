@@ -39,8 +39,9 @@ jobs:
             ${{ runner.os }}-dot-cargo-
       - name: Install cross
         run: cargo install cross --version 0.2.5
+      - uses: taiki-e/install-action@nextest
       - name: Run tests
-        run: cross test --release --target ${{ matrix.target }}
+        run: cross nextest r --release --target ${{ matrix.target }}
 
   coverage:
     name: Coverage
